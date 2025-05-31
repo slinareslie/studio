@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { Toaster }_ from '@/components/ui/toaster';
+import { Toaster } from '@/components/ui/toaster';
 import AppProviders from '@/components/providers/app-providers';
 import Header from '@/components/layout/header';
 import Footer from '@/components/layout/footer';
