@@ -7,6 +7,8 @@ import type { Alert } from '@/lib/types';
 import AlertCard from '@/components/alerts/alert-card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { AlertTriangle, ListChecks } from 'lucide-react';
+import Link from 'next/link'; // Added import
+import { Button } from '@/components/ui/button'; // Added import for Button, might be used with refetch
 
 async function fetchTrendingAlerts(): Promise<Alert[]> {
   const now = Timestamp.now();
