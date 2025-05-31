@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import AppProviders from '@/components/providers/app-providers';
 import Header from '@/components/layout/header';
 import Footer from '@/components/layout/footer';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
 export const metadata: Metadata = {
   title: 'TacnaAlerta',

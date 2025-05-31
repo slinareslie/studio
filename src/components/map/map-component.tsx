@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { APIProvider, Map, AdvancedMarker, Pin, InfoWindow } from '@vis.gl/react-google-maps';
-import { useQuery } from '@tanstack/react-query';
-import { collection, getDocs, query, where, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import type { Alert, AlertCategory } from '@/lib/types';
-import AlertCard from '@/components/alerts/alert-card'; 
-import { CircleAlert, Construction, Leaf, ShieldCheck, Volume2, Users, HelpCircle } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import mapboxgl from 'mapbox-gl'; // eslint-disable-line import/no-webpack-loader-syntax
+import type { Alert } from '@/lib/types'; // Keep for future use
+import { CircleAlert } from 'lucide-react';
+
+// Ensure Mapbox CSS is imported, typically in layout.tsx or here if specific
+// import 'mapbox-gl/dist/mapbox-gl.css';
+
 
 export interface LatLngLiteral {
   lat: number;
@@ -18,142 +18,103 @@ interface MapComponentProps {
   onMapClick?: (location: LatLngLiteral) => void;
   initialCenter?: LatLngLiteral;
   zoom?: number;
-  alertsToDisplay?: Alert[]; // Optional: pass alerts directly
+  alertsToDisplay?: Alert[]; // Will be used later to display markers
 }
 
-const categoryIcons: Record<AlertCategory, React.ElementType> = {
-  Infrastructure: Construction,
-  Environment: Leaf,
-  Security: ShieldCheck,
-  Noise: Volume2,
-  PublicServices: Users,
-  Other: HelpCircle,
-};
+// Tacna, Peru coordinates: [-70.2505, -18.0066] (Lng, Lat for Mapbox)
+const DEFAULT_CENTER_LNG_LAT: [number, number] = [-70.2505, -18.0066];
+const DEFAULT_ZOOM = 13;
 
-const categoryColors: Record<AlertCategory, string> = {
-  Infrastructure: 'bg-orange-500',
-  Environment: 'bg-green-500',
-  Security: 'bg-blue-500',
-  Noise: 'bg-yellow-500',
-  PublicServices: 'bg-purple-500',
-  Other: 'bg-gray-500',
-};
-
-async function fetchActiveAlerts(): Promise<Alert[]> {
-  const now = Timestamp.now();
-  const alertsRef = collection(db, 'alerts');
-  // Query for alerts that are not resolved and not expired
-  const q = query(alertsRef, where('isResolved', '==', false), where('expiresAt', '>', now.toMillis()));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Alert));
-}
-
-export default function MapComponent({ 
-  onMapClick, 
-  initialCenter = { lat: -18.0146, lng: -70.2536 }, // Default to Tacna, Peru
-  zoom = 13 
+export default function MapComponent({
+  onMapClick,
+  initialCenter,
+  zoom = DEFAULT_ZOOM,
 }: MapComponentProps) {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_ID;
+  const mapContainer = useRef<HTMLDivElement | null>(null);
+  const map = useRef<mapboxgl.Map | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
-  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
-  const [mapCenter, setMapCenter] = useState<LatLngLiteral>(initialCenter);
-
-  const { data: alerts, isLoading, error } = useQuery<Alert[]>({
-    queryKey: ['activeAlerts'],
-    queryFn: fetchActiveAlerts,
-  });
+  const mapboxAccessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
 
   useEffect(() => {
-    // Try to get user's current location
-    if (navigator.geolocation) {
+    if (!mapboxAccessToken || mapboxAccessToken === "pk.YOUR_MAPBOX_ACCESS_TOKEN_HERE") {
+      console.error("Mapbox Access Token is not configured or is a placeholder.");
+      return;
+    }
+    
+    if (map.current || !mapContainer.current) return; // Initialize map only once and if container exists
+
+    const LngLat: [number, number] = initialCenter
+      ? [initialCenter.lng, initialCenter.lat]
+      : DEFAULT_CENTER_LNG_LAT;
+
+    mapboxgl.accessToken = mapboxAccessToken;
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: 'mapbox://styles/mapbox/streets-v12', // Or your custom Mapbox style
+      center: LngLat,
+      zoom: zoom,
+    });
+
+    map.current.on('load', () => {
+      setMapLoaded(true);
+      // TODO: Add logic to display alertsToDisplay as markers/layers
+      // For now, this is where you'd iterate over `alertsToDisplay`
+      // and add mapboxgl.Marker for each.
+    });
+
+    if (onMapClick) {
+      map.current.on('click', (e) => {
+        onMapClick({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+      });
+    }
+
+    // Attempt to get user's current location to center map
+    if (navigator.geolocation && !initialCenter) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setMapCenter({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
+          if (map.current) {
+            map.current.setCenter([position.coords.longitude, position.coords.latitude]);
+          }
         },
         () => {
-          // Failed to get location, use default
           console.warn("Failed to get user location, using default.");
         }
       );
     }
-  }, []);
+    
+    // Clean up on unmount
+    return () => {
+      map.current?.remove();
+      map.current = null;
+      setMapLoaded(false);
+    };
+  }, [initialCenter, zoom, onMapClick, mapboxAccessToken]);
 
 
-  if (!apiKey) {
+  if (!mapboxAccessToken || mapboxAccessToken === "pk.YOUR_MAPBOX_ACCESS_TOKEN_HERE") {
     return (
-      <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground rounded-lg shadow-inner">
-        <CircleAlert className="h-12 w-12 mr-4" />
+      <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground rounded-lg shadow-inner p-4 text-center">
+        <CircleAlert className="h-12 w-12 mr-4 text-destructive" />
         <div>
-          <p className="text-lg font-semibold">Google Maps API Key no configurada.</p>
-          <p>Por favor, añada NEXT_PUBLIC_GOOGLE_MAPS_API_KEY a sus variables de entorno.</p>
+          <p className="text-lg font-semibold">Mapbox Access Token no configurado.</p>
+          <p>Por favor, añade tu Mapbox Public Access Token a la variable de entorno <code className="bg-destructive/20 px-1 rounded">NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN</code> en tu archivo <code className="bg-destructive/20 px-1 rounded">.env</code> y reinicia el servidor.</p>
         </div>
-      </div>
-    );
-  }
-  
-  if (isLoading) {
-     return (
-      <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground rounded-lg shadow-inner">
-        Cargando mapa y alertas...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-destructive/10 text-destructive rounded-lg shadow-inner">
-        Error al cargar alertas: {error.message}
       </div>
     );
   }
 
   return (
-    <APIProvider apiKey={apiKey}>
-      <Map
-        defaultCenter={mapCenter}
-        defaultZoom={zoom}
-        center={mapCenter}
-        zoom={zoom}
-        gestureHandling={'greedy'}
-        disableDefaultUI={true}
-        mapId={mapId || 'DEFAULT_MAP_ID'}
-        onClick={(e) => {
-          if (e.detail.latLng && onMapClick) {
-            onMapClick(e.detail.latLng);
-          }
-        }}
-        className="w-full h-full rounded-lg shadow-md"
-      >
-        {alerts?.map((alert) => {
-          const IconComponent = categoryIcons[alert.category] || HelpCircle;
-          const pinColor = categoryColors[alert.category] || 'bg-gray-500';
-          return (
-            <AdvancedMarker
-              key={alert.id}
-              position={{ lat: alert.latitude, lng: alert.longitude }}
-              onClick={() => setSelectedAlert(alert)}
-            >
-              <Pin background={pinColor.replace('bg-', '')} borderColor={'white'} glyphColor={'white'}>
-                 <IconComponent className="h-5 w-5" />
-              </Pin>
-            </AdvancedMarker>
-          );
-        })}
-
-        {selectedAlert && (
-          <InfoWindow
-            position={{ lat: selectedAlert.latitude, lng: selectedAlert.longitude }}
-            onCloseClick={() => setSelectedAlert(null)}
-            maxWidth={350}
-          >
-            <AlertCard alert={selectedAlert} isMapPopup={true} />
-          </InfoWindow>
-        )}
-      </Map>
-    </APIProvider>
+    <div 
+      ref={mapContainer} 
+      className="w-full h-full rounded-lg shadow-md" 
+      style={{ position: 'relative' }} // Needed for absolute positioning of map controls if any
+    >
+      {!mapLoaded && (
+         <div className="absolute inset-0 flex items-center justify-center bg-background/70 z-10">
+            <p className="text-muted-foreground">Cargando mapa...</p>
+         </div>
+      )}
+    </div>
   );
 }
