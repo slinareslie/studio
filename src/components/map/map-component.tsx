@@ -51,7 +51,7 @@ export default function MapComponent({
     mapboxgl.accessToken = mapboxAccessToken;
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12', // Or your custom Mapbox style
+      style: 'mapbox://styles/mapbox/streets-v12',
       center: LngLat,
       zoom: zoom,
     });
