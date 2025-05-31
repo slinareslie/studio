@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
-import mapboxgl from 'mapbox-gl'; // eslint-disable-line import/no-webpack-loader-syntax
-import type { Alert } from '@/lib/types'; // Keep for future use
+import React, { useState, useEffect, useCallback } from 'react';
+import { APIProvider, Map, AdvancedMarker, InfoWindow, useMap, MapCameraChangedEvent } from '@vis.gl/react-google-maps';
+import type { Alert } from '@/lib/types';
 import { CircleAlert } from 'lucide-react';
-
-// Ensure Mapbox CSS is imported, typically in layout.tsx or here if specific
-// import 'mapbox-gl/dist/mapbox-gl.css';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 
 export interface LatLngLiteral {
@@ -18,103 +16,113 @@ interface MapComponentProps {
   onMapClick?: (location: LatLngLiteral) => void;
   initialCenter?: LatLngLiteral;
   zoom?: number;
-  alertsToDisplay?: Alert[]; // Will be used later to display markers
+  alertsToDisplay?: Alert[]; // For future use to display markers
 }
 
-// Tacna, Peru coordinates: [-70.2505, -18.0066] (Lng, Lat for Mapbox)
-const DEFAULT_CENTER_LNG_LAT: [number, number] = [-70.2505, -18.0066];
+const DEFAULT_CENTER_LAT_LNG: LatLngLiteral = { lat: -18.0066, lng: -70.2505 }; // Tacna, Peru
 const DEFAULT_ZOOM = 13;
 
 export default function MapComponent({
   onMapClick,
-  initialCenter,
+  initialCenter = DEFAULT_CENTER_LAT_LNG,
   zoom = DEFAULT_ZOOM,
+  alertsToDisplay,
 }: MapComponentProps) {
-  const mapContainer = useRef<HTMLDivElement | null>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const googleMapsMapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_ID;
 
-  const mapboxAccessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+  const [mapCenter, setMapCenter] = useState<LatLngLiteral>(initialCenter);
+  const [currentZoom, setCurrentZoom] = useState<number>(zoom);
+  const [userLocation, setUserLocation] = useState<LatLngLiteral | null>(null);
 
   useEffect(() => {
-    if (!mapboxAccessToken || mapboxAccessToken === "pk.YOUR_MAPBOX_ACCESS_TOKEN_HERE") {
-      console.error("Mapbox Access Token is not configured or is a placeholder.");
-      return;
-    }
-    
-    if (map.current || !mapContainer.current) return; // Initialize map only once and if container exists
-
-    const LngLat: [number, number] = initialCenter
-      ? [initialCenter.lng, initialCenter.lat]
-      : DEFAULT_CENTER_LNG_LAT;
-
-    mapboxgl.accessToken = mapboxAccessToken;
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: LngLat,
-      zoom: zoom,
-    });
-
-    map.current.on('load', () => {
-      setMapLoaded(true);
-      // TODO: Add logic to display alertsToDisplay as markers/layers
-      // For now, this is where you'd iterate over `alertsToDisplay`
-      // and add mapboxgl.Marker for each.
-    });
-
-    if (onMapClick) {
-      map.current.on('click', (e) => {
-        onMapClick({ lat: e.lngLat.lat, lng: e.lngLat.lng });
-      });
-    }
-
-    // Attempt to get user's current location to center map
-    if (navigator.geolocation && !initialCenter) {
+    if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          if (map.current) {
-            map.current.setCenter([position.coords.longitude, position.coords.latitude]);
-          }
+          const newLocation = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          setUserLocation(newLocation);
+          // Optionally, center map on user location if no initialCenter is forced
+          // For now, we prioritize initialCenter prop or default Tacna
+           if (initialCenter === DEFAULT_CENTER_LAT_LNG) { // Only pan if we are on default
+             setMapCenter(newLocation);
+           }
         },
         () => {
-          console.warn("Failed to get user location, using default.");
+          console.warn("Failed to get user location, using default or provided initial center.");
         }
       );
     }
-    
-    // Clean up on unmount
-    return () => {
-      map.current?.remove();
-      map.current = null;
-      setMapLoaded(false);
-    };
-  }, [initialCenter, zoom, onMapClick, mapboxAccessToken]);
+  }, [initialCenter]);
 
 
-  if (!mapboxAccessToken || mapboxAccessToken === "pk.YOUR_MAPBOX_ACCESS_TOKEN_HERE") {
+  const handleMapInternalClick = (event: google.maps.MapMouseEvent) => {
+    if (event.latLng && onMapClick) {
+      onMapClick({ lat: event.latLng.lat(), lng: event.latLng.lng() });
+    }
+  };
+
+  if (!googleMapsApiKey || googleMapsApiKey === "YOUR_GOOGLE_MAPS_API_KEY_HERE") {
     return (
       <div className="w-full h-full flex items-center justify-center bg-muted text-muted-foreground rounded-lg shadow-inner p-4 text-center">
         <CircleAlert className="h-12 w-12 mr-4 text-destructive" />
         <div>
-          <p className="text-lg font-semibold">Mapbox Access Token no configurado.</p>
-          <p>Por favor, añade tu Mapbox Public Access Token a la variable de entorno <code className="bg-destructive/20 px-1 rounded">NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN</code> en tu archivo <code className="bg-destructive/20 px-1 rounded">.env</code> y reinicia el servidor.</p>
+          <p className="text-lg font-semibold">Google Maps API Key no configurado.</p>
+          <p>
+            Por favor, añade tu Google Maps API Key a la variable de entorno{' '}
+            <code className="bg-destructive/20 px-1 rounded">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> en tu archivo{' '}
+            <code className="bg-destructive/20 px-1 rounded">.env</code> y reinicia el servidor.
+          </p>
+          <p className="mt-2">También asegúrate de que la API Key esté habilitada para "Maps JavaScript API" y que la facturación esté activa en tu proyecto de Google Cloud.</p>
         </div>
       </div>
     );
   }
+  
+  // TODO: Implement alert markers and info windows based on alertsToDisplay prop
 
   return (
-    <div 
-      ref={mapContainer} 
-      className="w-full h-full rounded-lg shadow-md" 
-      style={{ position: 'relative' }} // Needed for absolute positioning of map controls if any
-    >
-      {!mapLoaded && (
-         <div className="absolute inset-0 flex items-center justify-center bg-background/70 z-10">
-            <p className="text-muted-foreground">Cargando mapa...</p>
-         </div>
-      )}
-    </div>
+    <APIProvider apiKey={googleMapsApiKey} solutionChannel="GMP_devsite_samples_v3_rgmbasic">
+      <div className="w-full h-full rounded-lg shadow-md relative">
+        <Map
+          defaultCenter={initialCenter}
+          defaultZoom={zoom}
+          center={mapCenter}
+          zoom={currentZoom}
+          gestureHandling={'greedy'}
+          disableDefaultUI={true}
+          mapId={googleMapsMapId} // Optional: for custom map styling
+          onClick={handleMapInternalClick}
+          className="w-full h-full"
+          onCameraChanged={(ev: MapCameraChangedEvent) => {
+            if(ev.detail.center) setMapCenter(ev.detail.center);
+            if(ev.detail.zoom) setCurrentZoom(ev.detail.zoom);
+          }}
+        >
+          {/* Example of how you might add a marker for user's current location */}
+          {userLocation && (
+             <AdvancedMarker position={userLocation} title="Tu ubicación actual">
+                {/* You can customize the marker icon here */}
+                <span style={{ fontSize: '2rem' }}>📍</span> 
+             </AdvancedMarker>
+          )}
+
+          {/* TODO: Iterate over alertsToDisplay and render AdvancedMarker for each */}
+          {/* {alertsToDisplay?.map(alert => (
+            <AdvancedMarker key={alert.id} position={{ lat: alert.latitude, lng: alert.longitude }}>
+              // Custom marker icon based on alert.category
+            </AdvancedMarker>
+          ))} */}
+        </Map>
+         {!googleMapsApiKey && ( // This check might be redundant due to early return, but good for clarity
+           <div className="absolute inset-0 flex items-center justify-center bg-background/70 z-10">
+              <LoadingSpinner />
+              <p className="ml-3 text-muted-foreground">Cargando mapa...</p>
+           </div>
+        )}
+      </div>
+    </APIProvider>
   );
 }
