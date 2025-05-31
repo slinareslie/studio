@@ -7,8 +7,8 @@ import type { Alert } from '@/lib/types';
 import AlertCard from '@/components/alerts/alert-card';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
 import { AlertTriangle, ListChecks } from 'lucide-react';
-import Link from 'next/link'; // Added import
-import { Button } from '@/components/ui/button'; // Added import for Button, might be used with refetch
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 async function fetchTrendingAlerts(): Promise<Alert[]> {
   const now = Timestamp.now();
@@ -74,7 +74,7 @@ export default function TrendingPage() {
   return (
     <div className="space-y-8">
       <div className="text-center md:text-left">
-        <h1 className="font-headline text-3xl md:text-4xl font-bold mb-2">Tendencias en TacnaAlerta</h1>
+        <h1 className="font-headline text-3xl md:text-4xl font-bold mb-2">Tendencias en Avisa</h1>
         <p className="text-lg text-muted-foreground">Descubre los problemas más reportados y comentados por la comunidad.</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

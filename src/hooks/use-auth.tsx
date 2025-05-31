@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
       await setDoc(doc(db, 'users', firebaseUser.uid), newUserProfile);
       setUser(newUserProfile);
       router.push('/');
-      toast({ title: "Cuenta creada", description: "¡Bienvenido a TacnaAlerta!" });
+      toast({ title: "Cuenta creada", description: "¡Bienvenido a Avisa!" });
     } catch (error: any) {
       console.error("Error signing up:", error);
       toast({ title: "Error al registrarse", description: error.message, variant: "destructive" });

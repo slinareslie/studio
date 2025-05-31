@@ -31,7 +31,7 @@ export default function Header() {
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <Building className="h-7 w-7 text-primary" />
-          <span className="font-headline text-2xl font-semibold text-primary">TacnaAlerta</span>
+          <span className="font-headline text-2xl font-semibold text-primary">Avisa</span>
         </Link>
         <nav className="hidden md:flex items-center space-x-2 lg:space-x-4">
           {navLinks.map((link) => (

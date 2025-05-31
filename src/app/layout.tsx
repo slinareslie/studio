@@ -6,7 +6,7 @@ import Header from '@/components/layout/header';
 import Footer from '@/components/layout/footer';
 
 export const metadata: Metadata = {
-  title: 'TacnaAlerta',
+  title: 'Avisa',
   description: 'Civic alert system for Tacna',
 };
 
